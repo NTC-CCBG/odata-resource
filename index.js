@@ -132,11 +132,19 @@ Resource.prototype.singleResponse = function(req,res,obj,postMapper,next) {
     }
 };
 Resource.prototype._listResponse = function(linkGenerator,req,res,objs,postMapper,next) {
+    instanceLinkNames = this.getInstanceLinkNames(),
+    rel = this.getRel();
+    init = this.getDefinition();// TODO
     var response = {
-            list: objs.map(this.getMapper(postMapper))
+            "@odata.id": rel,
+            // "@odata.type": "#ManagerCollection.ManagerCollection",
+            Members: objs.map(this.getMapper(postMapper)),
+            "Members@odata.count": objs.map(this.getMapper(postMapper)).length,
+            // "Name": "Manager Collection"
         },
         qDef = req.$odataQueryDefinition;
     response._links = linkGenerator(req,response);
+    console.log(qDef && qDef.$top)
     if(qDef && qDef.$top) {
         // next,prev links
         response._links = response._links||{};
@@ -360,6 +368,7 @@ Resource.prototype.getMapper = function(postMapper) {
     var model = this.getModel(),
         instanceLinkNames = this.getInstanceLinkNames(),
         rel = this.getRel();
+        init = this.getDefinition();
     return function(o,i,arr) {
         if(typeof(o.toObject) === 'function') {
             if(!i) {
@@ -368,6 +377,9 @@ Resource.prototype.getMapper = function(postMapper) {
             }
             o = o.toObject();
         }
+        console.log(typeof(init))
+        console.log(init["@odata.type"]) // TODO
+        o["@odata.type"] = init["@odata.type"]
         var selfLink = rel+'/'+o._id,
             links = {
                 self: selfLink
@@ -375,7 +387,7 @@ Resource.prototype.getMapper = function(postMapper) {
         instanceLinkNames.forEach(function(link) {
             links[link] = selfLink+'/'+link
         });
-        o._links = links;
+        o["@odata.id"] = selfLink;
         return typeof(postMapper) === 'function' ? postMapper(o,i,arr) : o;
     };
 };
@@ -494,6 +506,39 @@ Resource.prototype.update = function(req,res,next) {
     });
 };
 /**
+ * <p>Updates an instance of this entity type and returns the updated
+ * object to the client.</p>
+ *
+ * <p><em>Note:</em> This implementation of update is more similar to PATCH in that
+ * it doesn't require a complete object to update.  It will accept a sparsely populated
+ * input object and update only the keys found within that object.</p>
+ *
+ * @param  {Object} req The express request object.
+ * @param  {Object} res The express response object.
+ * @param  {Function} [next] Optional next callback to invoke after the response is sent with the response object.
+ */
+ Resource.prototype.action = function(req,res,next) { // TODO
+    var self = this,
+        model = self.getModel();
+        return Resource.sendError(res,500,'update failure',"err",next);
+    // not using findOneAndUpdate because helpers are not applied
+    // model.findOne({_id: req._resourceId},function(err,obj){
+    //     if(err) {
+    //         return Resource.sendError(res,404,'not found',err,next);
+    //     }
+    //     Object.keys(req.body).forEach(function(key){
+    //         obj[key] = req.body[key];
+    //     });
+    //     obj.save(function(err,obj) {
+    //         if(err) {
+    //             return Resource.sendError(res,500,'update failure',err,next);
+    //         }
+    //         // re-fetch the object so that nested attributes are properly populated.
+    //         self.findById(req,res,next);
+    //     });
+    // });
+};
+/**
  * Deletes an instance of this entity type.
  *
  * @param  {Object} req The express request object.
@@ -594,6 +639,16 @@ Resource.prototype.initRouter = function(app) {
         req._resourceId = id;
         next();
     });
+    if(typeof(resource.action) === 'undefined' || resource.action) {
+        resource.create = false
+        resource.update = false
+        resource.delete = false
+        router.post('/:id/' + resource.actionkey,(function(self){
+            return function(req,res) {
+                self.action(req,res);
+            };
+        })(this));
+    }
     if(typeof(resource.create) === 'undefined' || resource.create) {
         router.post('/',(function(self){
             return function(req,res) {

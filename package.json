@@ -1,6 +1,6 @@
 {
   "name": "@tswei/odata-resource",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "description": "Redfish",
   "main": "index.js",
   "scripts": {
@@ -14,7 +14,8 @@
     "REST",
     "OData",
     "Mongoose",
-    "MongoDb"
+    "MongoDb",
+	"Redfish"
   ],
   "author": "adamspe@gmail.com",
   "contributors": [

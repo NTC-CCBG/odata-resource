@@ -46,6 +46,7 @@ var debug = require('debug')('Resource'),
 var Resource = function(definition) {
     var self = this;
     this._definition = Object.assign({count: false},definition);
+    // console.log(this._definition)
     if(this._definition.count) {
         this._definition.staticLinks = {
             'count': function(req,res) { self.count(req,res); }
@@ -90,6 +91,36 @@ Resource.prototype.getDefinition = function() {
     return this._definition;
 };
 /**
+ * @return {String} The odata service name.
+ */
+ Resource.prototype.getOName = function() {
+    return this._definition.oname;
+};
+/**
+ * @return {String} The odata service type.
+ */
+ Resource.prototype.getOType = function() {
+    return this._definition.otype;
+};
+/**
+ * @return {Object} The odata url key.
+ */
+ Resource.prototype.getOKey = function() {
+    return this._definition.okey;
+};
+/**
+ * @return {String} The service is a leaf node.
+ */
+ Resource.prototype.getLeaf = function() {
+    return this._definition.leaf;
+};
+/**
+ * @return {Object} The rest of the content.
+ */
+ Resource.prototype.getContent = function() {
+    return this._definition.content;
+};
+/**
  * @return {String} The resource relative path.
  */
 Resource.prototype.getRel = function() {
@@ -125,7 +156,7 @@ Resource.prototype.getStaticLinkNames = function() {
  * @param  {Function} [next]       Optional next callback to invoke after the response is sent with the response object.
  */
 Resource.prototype.singleResponse = function(req,res,obj,postMapper,next) {
-    var response = this.getMapper(postMapper)(obj);
+    var response = this.getMapper(postMapper, 1)(obj);
     res.send(response);
     if(typeof(next) === 'function') {
         next(null,response);
@@ -135,33 +166,48 @@ Resource.prototype._listResponse = function(linkGenerator,req,res,objs,postMappe
     instanceLinkNames = this.getInstanceLinkNames(),
     rel = this.getRel();
     init = this.getDefinition();// TODO
-    var response = {
+    leaf = this.getLeaf();
+    content = this.getContent();
+    otype = this.getOType();
+    oname = this.getOName();
+    // console.log(leaf)
+    if(leaf){
+        var response = {
             "@odata.id": rel,
             // "@odata.type": "#ManagerCollection.ManagerCollection",
-            Members: objs.map(this.getMapper(postMapper)),
-            "Members@odata.count": objs.map(this.getMapper(postMapper)).length,
-            // "Name": "Manager Collection"
+            Members: objs.map(this.getMapper(postMapper, 0)),
+            "Members@odata.count": objs.map(this.getMapper(postMapper, 0)).length,
+            "Name": oname
         },
         qDef = req.$odataQueryDefinition;
-    response._links = linkGenerator(req,response);
-    console.log(qDef && qDef.$top)
-    if(qDef && qDef.$top) {
-        // next,prev links
-        response._links = response._links||{};
-        // looks odd but $top could be part of the service definition so
-        // if its there use it but over-ride if supplied by the client.
-        var forwardArgs = Object.assign({$top: qDef.$top},req.query),
-            nextArgs = Object.assign({},forwardArgs,{$skip:(parseInt(forwardArgs.$skip||0)+parseInt(forwardArgs.$top))})
-            prevArgs = Object.assign({},forwardArgs,{$skip:(parseInt(forwardArgs.$skip||0)-parseInt(forwardArgs.$top))}),
-            baseUrl = req.originalUrl.replace(/\?.*$/,'');
-        if(prevArgs.$skip >= 0) {
-            response._links.prev = baseUrl+'?'+querystring.stringify(prevArgs);
+        response._links = linkGenerator(req,response);
+        // console.log(qDef && qDef.$top)
+        if(qDef && qDef.$top) {
+            // next,prev links
+            response._links = response._links||{};
+            // looks odd but $top could be part of the service definition so
+            // if its there use it but over-ride if supplied by the client.
+            var forwardArgs = Object.assign({$top: qDef.$top},req.query),
+                nextArgs = Object.assign({},forwardArgs,{$skip:(parseInt(forwardArgs.$skip||0)+parseInt(forwardArgs.$top))})
+                prevArgs = Object.assign({},forwardArgs,{$skip:(parseInt(forwardArgs.$skip||0)-parseInt(forwardArgs.$top))}),
+                baseUrl = req.originalUrl.replace(/\?.*$/,'');
+            if(prevArgs.$skip >= 0) {
+                response._links.prev = baseUrl+'?'+querystring.stringify(prevArgs);
+            }
+            // only add the next link if there are exactly the requested number of objects.
+            // can't be sure if the next page might not be empty.
+            if(response.list.length === parseInt(qDef.$top)){
+                response._links.next = baseUrl+'?'+querystring.stringify(nextArgs);
+            }
         }
-        // only add the next link if there are exactly the requested number of objects.
-        // can't be sure if the next page might not be empty.
-        if(response.list.length === parseInt(qDef.$top)){
-            response._links.next = baseUrl+'?'+querystring.stringify(nextArgs);
-        }
+    }
+    else{
+        var response = {
+            "@odata.id": rel,
+            "@odata.type": otype
+        };
+        response = Object.assign(response, content);
+        response.name = oname
     }
     res.send(response);
     if(typeof(next) === 'function') {
@@ -364,11 +410,12 @@ Resource.prototype.initQuery = function(query,req) {
  * @param  {function} postMapper Array.map callback that should be called after the underlying mapper does its work (optional).
  * @return {function}            An Array.map callback.
  */
-Resource.prototype.getMapper = function(postMapper) {
+Resource.prototype.getMapper = function(postMapper, findType) {
     var model = this.getModel(),
         instanceLinkNames = this.getInstanceLinkNames(),
         rel = this.getRel();
         init = this.getDefinition();
+        okey = this.getOKey();
     return function(o,i,arr) {
         if(typeof(o.toObject) === 'function') {
             if(!i) {
@@ -377,10 +424,9 @@ Resource.prototype.getMapper = function(postMapper) {
             }
             o = o.toObject();
         }
-        console.log(typeof(init))
-        console.log(init["@odata.type"]) // TODO
         o["@odata.type"] = init["@odata.type"]
-        var selfLink = rel+'/'+o._id,
+        id_sub = String(o._id).substring(String(o._id).length - 8);
+        var selfLink = rel+'/'+encodeURIComponent(o[okey].replace(/\./g, '_')),
             links = {
                 self: selfLink
             };
@@ -388,7 +434,15 @@ Resource.prototype.getMapper = function(postMapper) {
             links[link] = selfLink+'/'+link
         });
         o["@odata.id"] = selfLink;
-        return typeof(postMapper) === 'function' ? postMapper(o,i,arr) : o;
+        k = {
+            "@odata.id": selfLink
+        };
+        if(findType){
+            return typeof(postMapper) === 'function' ? postMapper(o,i,arr) : o;
+        }
+        else{
+            return typeof(postMapper) === 'function' ? postMapper(o,i,arr) : k;
+        }
     };
 };
 /**
@@ -412,6 +466,28 @@ Resource.prototype.findById = function(req,res,next) {
     });
 };
 /**
+ * Fetches and returns to the client an entity by parameters.  Resources may
+ * override this default functionality.
+ *
+ * @param  {Object} req The express request object.
+ * @param  {Object} res The express response object.
+ * @param  {Function} [next]       Optional next callback to invoke after the response is sent with the response object.
+ */
+ Resource.prototype.findByOKey = function(req,res,next) {
+    var self = this,
+        def = this.getDefinition();
+        okey = this.getOKey();
+        resourceId = decodeURIComponent(req._resourceId.replace(/_/g, '.'))
+        query = this.initQuery(self.getModel().find({[okey]:resourceId}),req);
+    query.exec(function(err,obj){
+        if(err || !obj) {
+            Resource.sendError(res,404,'not found',err);
+        } else {
+            self.singleResponse(req,res,obj[0],null,next);
+        }
+    });
+};
+/**
  * Executes a query for an entity type and returns the response to the client.
  * Resources may override this default functionality.
  *
@@ -431,6 +507,18 @@ Resource.prototype.find = function(req,res,next) {
             self._findListResponse(req,res,objs,null,next);
         }
     });
+};
+/**
+ * Executes a query for an entity type and returns the response to the client.
+ * Resources may override this default functionality.
+ *
+ * @param  {Object} req The express request object.
+ * @param  {Object} res The express response object.
+ * @param  {Function} [next] Optional next callback to invoke after the response is sent with the response object.
+ */
+Resource.prototype.internalNode = function(req,res,next) {
+    var self = this
+    self._findListResponse(req,res,null,null,next);
 };
 /**
  * Executes a query for an entity type and returns the number of objects found.
@@ -622,6 +710,7 @@ Resource.prototype.initRouter = function(app) {
     var self = this,
         resource = self._definition,
         router = express.Router();
+        leaf = this.getLeaf();
     if(resource.staticLinks) {
         Object.keys(resource.staticLinks).forEach(function(link){
             var linkObj = resource.staticLinks[link],
@@ -670,16 +759,25 @@ Resource.prototype.initRouter = function(app) {
             };
         })(this));
     }
-    router.get('/:id',(function(self){
-        return function(req,res) {
-            self.findById(req,res);
-        };
-    })(this));
-    router.get('/', (function(self){
-        return function(req,res) {
-            self.find(req,res);
-        };
-    })(this));
+    if(leaf){
+        router.get('/:id',(function(self){
+            return function(req,res) {
+                self.findByOKey(req,res);
+            };
+        })(this));
+        router.get('/', (function(self){
+            return function(req,res) {
+                self.find(req,res);
+            };
+        })(this));
+    }
+    else{
+        router.get('/', (function(self){
+            return function(req,res) {
+                self.internalNode(req,res);
+            };
+        })(this));
+    }
 
     if(resource.instanceLinks) {
         Object.keys(resource.instanceLinks).forEach(function(link){

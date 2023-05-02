@@ -1,27 +1,33 @@
 {
-  "name": "odata-resource",
-  "version": "2.0.0",
-  "description": "REST + OData + Mongoose/MongoDb",
+  "name": "@tswei/odata-resource",
+  "version": "2.1.2",
+  "description": "Redfish",
   "main": "index.js",
   "scripts": {
     "test": "nyc --reporter=html mocha --timeout 5000 test/*.js"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/adamspe/odata-resource.git"
+    "url": "git+https://github.com/SKNTim/odata-resource.git"
   },
   "keywords": [
     "REST",
     "OData",
     "Mongoose",
-    "MongoDb"
+    "MongoDb",
+	"Redfish"
   ],
   "author": "adamspe@gmail.com",
+  "contributors": [
+    {
+      "name": "TS WEI",
+      "email" : "timmy444074@gmail.com"
+    }
+  ],
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/adamspe/odata-resource/issues"
+    "url": "https://github.com/SKNTim/odata-resource/issues"
   },
-  "homepage": "https://adamspe.github.io/odata-resource/",
   "dependencies": {
     "debug": ">=2.6.9"
   },

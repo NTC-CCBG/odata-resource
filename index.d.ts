@@ -25,6 +25,7 @@ declare class Resource<DocType extends Document> {
     create(req:Request,res:Response,next?:Resource.NEXT):void;
     update(req:Request,res:Response,next?:Resource.NEXT):void;
     delete(req:Request,res:Response,next?:Resource.NEXT):void;
+    action(req:Request,res:Response,next?:Resource.NEXT):void;
 
     staticLink(rel:string,link:Resource.LINK_FUNC | Resource.LinkDef):Resource<DocType>;
     instanceLink(rel:string,link:Resource.LINK_FUNC | Resource.LinkDef):Resource<DocType>;
@@ -51,6 +52,8 @@ declare namespace Resource {
         create?:boolean;
         update?:boolean;
         delete?:boolean;
+        action?:boolean;
+        actionkey:string;
         lean?:boolean;
         populate?: string | string[];
         count?:boolean;

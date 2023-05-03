@@ -109,10 +109,10 @@ Resource.prototype.getDefinition = function() {
     return this._definition.okey;
 };
 /**
- * @return {String} The service is a leaf node.
+ * @return {String} Determine node type.
  */
- Resource.prototype.getLeaf = function() {
-    return this._definition.leaf;
+ Resource.prototype.getNodeType = function() {
+    return this._definition.node_type;
 };
 /**
  * @return {Object} The rest of the content.
@@ -166,12 +166,11 @@ Resource.prototype._listResponse = function(linkGenerator,req,res,objs,postMappe
     instanceLinkNames = this.getInstanceLinkNames(),
     rel = this.getRel();
     init = this.getDefinition();// TODO
-    leaf = this.getLeaf();
+    nodeType = this.getNodeType();
     content = this.getContent();
     otype = this.getOType();
     oname = this.getOName();
-    // console.log(leaf)
-    if(leaf){
+    if(nodeType.includes("internal_db")){
         var response = {
             "@odata.id": rel,
             // "@odata.type": "#ManagerCollection.ManagerCollection",
@@ -207,6 +206,9 @@ Resource.prototype._listResponse = function(linkGenerator,req,res,objs,postMappe
             "@odata.type": otype
         };
         response = Object.assign(response, content);
+        if(content.hasOwnProperty("Members")){
+            response["Members@odata.count"] = content.Members.length
+        }
         response.name = oname
     }
     res.send(response);
@@ -710,7 +712,7 @@ Resource.prototype.initRouter = function(app) {
     var self = this,
         resource = self._definition,
         router = express.Router();
-        leaf = this.getLeaf();
+        nodeType = this.getNodeType();
     if(resource.staticLinks) {
         Object.keys(resource.staticLinks).forEach(function(link){
             var linkObj = resource.staticLinks[link],
@@ -759,7 +761,7 @@ Resource.prototype.initRouter = function(app) {
             };
         })(this));
     }
-    if(leaf){
+    if(nodeType == "internal_db"){
         router.get('/:id',(function(self){
             return function(req,res) {
                 self.findByOKey(req,res);

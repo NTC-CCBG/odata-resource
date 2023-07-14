@@ -46,7 +46,6 @@ var debug = require('debug')('Resource'),
 var Resource = function(definition) {
     var self = this;
     this._definition = Object.assign({count: false},definition);
-    // console.log(this._definition)
     if(this._definition.count) {
         this._definition.staticLinks = {
             'count': function(req,res) { self.count(req,res); }
@@ -170,35 +169,38 @@ Resource.prototype._listResponse = function(linkGenerator,req,res,objs,postMappe
     content = this.getContent();
     otype = this.getOType();
     oname = this.getOName();
-    if(nodeType.includes("internal_db")){
+    if(nodeType == "internal_db"){
         var response = {
             "@odata.id": rel,
-            // "@odata.type": "#ManagerCollection.ManagerCollection",
+            "@odata.type": otype,
             Members: objs.map(this.getMapper(postMapper, 0)),
             "Members@odata.count": objs.map(this.getMapper(postMapper, 0)).length,
             "Name": oname
         },
         qDef = req.$odataQueryDefinition;
         response._links = linkGenerator(req,response);
-        // console.log(qDef && qDef.$top)
-        if(qDef && qDef.$top) {
-            // next,prev links
-            response._links = response._links||{};
-            // looks odd but $top could be part of the service definition so
-            // if its there use it but over-ride if supplied by the client.
-            var forwardArgs = Object.assign({$top: qDef.$top},req.query),
-                nextArgs = Object.assign({},forwardArgs,{$skip:(parseInt(forwardArgs.$skip||0)+parseInt(forwardArgs.$top))})
-                prevArgs = Object.assign({},forwardArgs,{$skip:(parseInt(forwardArgs.$skip||0)-parseInt(forwardArgs.$top))}),
-                baseUrl = req.originalUrl.replace(/\?.*$/,'');
-            if(prevArgs.$skip >= 0) {
-                response._links.prev = baseUrl+'?'+querystring.stringify(prevArgs);
-            }
-            // only add the next link if there are exactly the requested number of objects.
-            // can't be sure if the next page might not be empty.
-            if(response.list.length === parseInt(qDef.$top)){
-                response._links.next = baseUrl+'?'+querystring.stringify(nextArgs);
-            }
-        }
+        response = Object.assign(response, content);
+
+        // no pagination message required
+
+        // if(qDef && qDef.$top) {
+        //     // next,prev links
+        //     response._links = response._links||{};
+        //     // looks odd but $top could be part of the service definition so
+        //     // if its there use it but over-ride if supplied by the client.
+        //     var forwardArgs = Object.assign({$top: qDef.$top},req.query),
+        //         nextArgs = Object.assign({},forwardArgs,{$skip:(parseInt(forwardArgs.$skip||0)+parseInt(forwardArgs.$top))})
+        //         prevArgs = Object.assign({},forwardArgs,{$skip:(parseInt(forwardArgs.$skip||0)-parseInt(forwardArgs.$top))}),
+        //         baseUrl = req.originalUrl.replace(/\?.*$/,'');
+        //     if(prevArgs.$skip >= 0) {
+        //         response._links.prev = baseUrl+'?'+querystring.stringify(prevArgs);
+        //     }
+        //     // only add the next link if there are exactly the requested number of objects.
+        //     // can't be sure if the next page might not be empty.
+        //     if(response.list.length === parseInt(qDef.$top)){
+        //         response._links.next = baseUrl+'?'+querystring.stringify(nextArgs);
+        //     }
+        // }
     }
     else{
         var response = {
@@ -207,9 +209,9 @@ Resource.prototype._listResponse = function(linkGenerator,req,res,objs,postMappe
         };
         response = Object.assign(response, content);
         if(content.hasOwnProperty("Members")){
-            response["Members@odata.count"] = content.Members.length
+            response["Members@odata.count"] = content.Members.length;
         }
-        response.name = oname
+        response["Name"] = oname;
     }
     res.send(response);
     if(typeof(next) === 'function') {
@@ -416,8 +418,10 @@ Resource.prototype.getMapper = function(postMapper, findType) {
     var model = this.getModel(),
         instanceLinkNames = this.getInstanceLinkNames(),
         rel = this.getRel();
-        init = this.getDefinition();
+        otype = this.getOType();
         okey = this.getOKey();
+        oname = this.getOName();
+        content = this.getContent();
     return function(o,i,arr) {
         if(typeof(o.toObject) === 'function') {
             if(!i) {
@@ -426,15 +430,17 @@ Resource.prototype.getMapper = function(postMapper, findType) {
             }
             o = o.toObject();
         }
-        o["@odata.type"] = init["@odata.type"]
+        o = Object.assign(o, content)
+        o["@odata.type"] = otype;
+        o["Name"] = oname;
         id_sub = String(o._id).substring(String(o._id).length - 8);
-        var selfLink = rel+'/'+encodeURIComponent(o[okey].replace(/\./g, '_')),
-            links = {
-                self: selfLink
-            };
-        instanceLinkNames.forEach(function(link) {
-            links[link] = selfLink+'/'+link
-        });
+        var selfLink = rel + '/' + o[okey]; //+encodeURIComponent(o[okey].replace(/\./g, '_')),
+        // links = {
+        //     self: selfLink
+        // };
+        // instanceLinkNames.forEach(function(link) {
+        //     links[link] = selfLink+'/'+link
+        // });
         o["@odata.id"] = selfLink;
         k = {
             "@odata.id": selfLink
@@ -762,18 +768,13 @@ Resource.prototype.initRouter = function(app) {
         })(this));
     }
     if(nodeType == "internal_db"){
-        router.get('/:id',(function(self){
-            return function(req,res) {
-                self.findByOKey(req,res);
-            };
-        })(this));
         router.get('/', (function(self){
             return function(req,res) {
                 self.find(req,res);
             };
         })(this));
     }
-    else{
+    else if(nodeType == "internal"){
         router.get('/', (function(self){
             return function(req,res) {
                 self.internalNode(req,res);

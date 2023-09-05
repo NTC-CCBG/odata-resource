@@ -11,7 +11,6 @@ declare class Resource<DocType extends Document> {
     getOType():string;
     getOKey():string;
     getModel():Model<DocType>;
-    getInstanceLinkNames():string[];
     getStaticLinkNames():string[];
     singleResponse(req:Request,res:Response,obj:any,postMapper?:Resource.POST_MAPPER,next?:Resource.NEXT):void;
     _findListResponse(req:Request,res:Response,objs:any[],postMapper?:Resource.POST_MAPPER,next?:Resource.NEXT):void;
@@ -29,10 +28,8 @@ declare class Resource<DocType extends Document> {
     create(req:Request,res:Response,next?:Resource.NEXT):void;
     update(req:Request,res:Response,next?:Resource.NEXT):void;
     delete(req:Request,res:Response,next?:Resource.NEXT):void;
-    action(req:Request,res:Response,next?:Resource.NEXT):void;
 
     staticLink(rel:string,link:Resource.LINK_FUNC | Resource.LinkDef):Resource<DocType>;
-    instanceLink(rel:string,link:Resource.LINK_FUNC | Resource.LinkDef):Resource<DocType>;
 
     initRouter(app:any):Router;
 

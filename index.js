@@ -132,13 +132,6 @@ Resource.prototype.getModel = function() {
     return this._definition.model;
 };
 /**
- * @return {Array} The list of instance link names.
- */
-Resource.prototype.getInstanceLinkNames = function() {
-    var def = this.getDefinition();
-    return def.instanceLinks ? Object.keys(def.instanceLinks) : [];
-};
-/**
  * @return {Array} The list of static link names.
  */
 Resource.prototype.getStaticLinkNames = function() {
@@ -162,7 +155,6 @@ Resource.prototype.singleResponse = function(req,res,obj,postMapper,next) {
     }
 };
 Resource.prototype._listResponse = function(linkGenerator,req,res,objs,postMapper,next) {
-    instanceLinkNames = this.getInstanceLinkNames(),
     rel = this.getRel();
     init = this.getDefinition();// TODO
     nodeType = this.getNodeType();
@@ -176,31 +168,9 @@ Resource.prototype._listResponse = function(linkGenerator,req,res,objs,postMappe
             Members: objs.map(this.getMapper(postMapper, 0)),
             "Members@odata.count": objs.map(this.getMapper(postMapper, 0)).length,
             "Name": oname
-        },
-        qDef = req.$odataQueryDefinition;
+        }
         response._links = linkGenerator(req,response);
         response = Object.assign(response, content);
-
-        // no pagination message required
-
-        // if(qDef && qDef.$top) {
-        //     // next,prev links
-        //     response._links = response._links||{};
-        //     // looks odd but $top could be part of the service definition so
-        //     // if its there use it but over-ride if supplied by the client.
-        //     var forwardArgs = Object.assign({$top: qDef.$top},req.query),
-        //         nextArgs = Object.assign({},forwardArgs,{$skip:(parseInt(forwardArgs.$skip||0)+parseInt(forwardArgs.$top))})
-        //         prevArgs = Object.assign({},forwardArgs,{$skip:(parseInt(forwardArgs.$skip||0)-parseInt(forwardArgs.$top))}),
-        //         baseUrl = req.originalUrl.replace(/\?.*$/,'');
-        //     if(prevArgs.$skip >= 0) {
-        //         response._links.prev = baseUrl+'?'+querystring.stringify(prevArgs);
-        //     }
-        //     // only add the next link if there are exactly the requested number of objects.
-        //     // can't be sure if the next page might not be empty.
-        //     if(response.list.length === parseInt(qDef.$top)){
-        //         response._links.next = baseUrl+'?'+querystring.stringify(nextArgs);
-        //     }
-        // }
     }
     else{
         var response = {
@@ -346,6 +316,9 @@ Resource.prototype.initQuery = function(query,req) {
         },base,req.query),
         populate = def.$expand ?
             (Array.isArray(def.$expand) ? def.$expand : [def.$expand]) : [];
+        console.log(def)
+        console.log(base)
+        console.log(populate)
     populate.forEach(function(att){
         if(typeof(att) === 'string') {
             att.split(',').forEach(function(a) {
@@ -384,6 +357,8 @@ Resource.prototype.initQuery = function(query,req) {
         query.limit(+def.$top);
     }
     if(def.$skip) {
+        console.log('+def.$skip')
+        console.log(+def.$skip)
         query.skip(+def.$skip);
     }
     if(def.$orderby) {
@@ -415,8 +390,6 @@ Resource.prototype.initQuery = function(query,req) {
  * @return {function}            An Array.map callback.
  */
 Resource.prototype.getMapper = function(postMapper, findType) {
-    var model = this.getModel(),
-        instanceLinkNames = this.getInstanceLinkNames(),
         rel = this.getRel();
         otype = this.getOType();
         okey = this.getOKey();
@@ -434,13 +407,7 @@ Resource.prototype.getMapper = function(postMapper, findType) {
         o["@odata.type"] = otype;
         o["Name"] = oname;
         id_sub = String(o._id).substring(String(o._id).length - 8);
-        var selfLink = rel + '/' + o[okey]; //+encodeURIComponent(o[okey].replace(/\./g, '_')),
-        // links = {
-        //     self: selfLink
-        // };
-        // instanceLinkNames.forEach(function(link) {
-        //     links[link] = selfLink+'/'+link
-        // });
+        var selfLink = rel + '/' + o[okey];
         o["@odata.id"] = selfLink;
         k = {
             "@odata.id": selfLink
@@ -463,7 +430,7 @@ Resource.prototype.getMapper = function(postMapper, findType) {
  */
 Resource.prototype.findById = function(req,res,next) {
     var self = this,
-        def = this.getDefinition();
+        // def = this.getDefinition();
         query = this.initQuery(self.getModel().findById(req._resourceId),req);
     query.exec(function(err,obj){
         if(err || !obj) {
@@ -483,7 +450,7 @@ Resource.prototype.findById = function(req,res,next) {
  */
  Resource.prototype.findByOKey = function(req,res,next) {
     var self = this,
-        def = this.getDefinition();
+        // def = this.getDefinition();
         okey = this.getOKey();
         resourceId = decodeURIComponent(req._resourceId.replace(/_/g, '.'))
         query = this.initQuery(self.getModel().find({[okey]:resourceId}),req);
@@ -505,7 +472,6 @@ Resource.prototype.findById = function(req,res,next) {
  */
 Resource.prototype.find = function(req,res,next) {
     var self = this,
-        def = this.getDefinition(),
         query = this.initQuery(self.getModel().find(),req);
     query.exec(function(err,objs){
         if(err){
@@ -537,7 +503,6 @@ Resource.prototype.internalNode = function(req,res,next) {
  */
 Resource.prototype.count = function(req,res) {
     var self = this,
-        def = this.getDefinition(),
         query = this.initQuery(self.getModel().find(),req);
     query.countDocuments(function(err,n){
         if(err){
@@ -563,7 +528,6 @@ Resource.prototype.create = function(req,res,next) {
         if(err) {
             return Resource.sendError(res,500,'create failure',err,next);
         }
-        // self.singleResponse(req,res,saved);
         // re-fetch the object so that nested attributes are properly populated.
         req._resourceId = saved._id;
         self.findById(req,res,next);
@@ -600,39 +564,6 @@ Resource.prototype.update = function(req,res,next) {
             self.findById(req,res,next);
         });
     });
-};
-/**
- * <p>Updates an instance of this entity type and returns the updated
- * object to the client.</p>
- *
- * <p><em>Note:</em> This implementation of update is more similar to PATCH in that
- * it doesn't require a complete object to update.  It will accept a sparsely populated
- * input object and update only the keys found within that object.</p>
- *
- * @param  {Object} req The express request object.
- * @param  {Object} res The express response object.
- * @param  {Function} [next] Optional next callback to invoke after the response is sent with the response object.
- */
- Resource.prototype.action = function(req,res,next) { // TODO
-    var self = this,
-        model = self.getModel();
-        return Resource.sendError(res,500,'update failure',"err",next);
-    // not using findOneAndUpdate because helpers are not applied
-    // model.findOne({_id: req._resourceId},function(err,obj){
-    //     if(err) {
-    //         return Resource.sendError(res,404,'not found',err,next);
-    //     }
-    //     Object.keys(req.body).forEach(function(key){
-    //         obj[key] = req.body[key];
-    //     });
-    //     obj.save(function(err,obj) {
-    //         if(err) {
-    //             return Resource.sendError(res,500,'update failure',err,next);
-    //         }
-    //         // re-fetch the object so that nested attributes are properly populated.
-    //         self.findById(req,res,next);
-    //     });
-    // });
 };
 /**
  * Deletes an instance of this entity type.
@@ -680,33 +611,6 @@ Resource.prototype.staticLink = function(rel,link) {
     return this;
 };
 /**
- * Add an instance link to this resource.
- *
- * The link argument can be either an object defining a simple relationship
- * (based on a reference from the 'other side' object) or a function to be called to
- * resolve the relationship.
- *
- * If a function is supplied then its arguments must be (req,res) which are the express
- * request and response objects respectively.
- *
- * If an object is supplied then the necessary keys are:
- * - otherSide (Object): The Resource instance of the other side entity.
- * - key (string): The attribute name on the otherside object containing the id of this Resource's entity type.
- *
- * @param  {String} rel  The relative path of the link.
- * @param  {Object|function} link The link definition.
- * @return {Object}      this
- */
-Resource.prototype.instanceLink = function(rel,link) {
-    var def = this._definition,
-        links = def.instanceLinks;
-    if(!links) {
-        links = def.instanceLinks = {};
-    }
-    links[rel] = link;
-    return this;
-}
-/**
  * Initializes and returns an express router.
  * If app is supplied then app.use is called to bind the
  * resource's 'rel' to the router.
@@ -736,37 +640,6 @@ Resource.prototype.initRouter = function(app) {
         req._resourceId = id;
         next();
     });
-    if(typeof(resource.action) === 'undefined' || resource.action) {
-        resource.create = false
-        resource.update = false
-        resource.delete = false
-        router.post('/:id/' + resource.actionkey,(function(self){
-            return function(req,res) {
-                self.action(req,res);
-            };
-        })(this));
-    }
-    if(typeof(resource.create) === 'undefined' || resource.create) {
-        router.post('/',(function(self){
-            return function(req,res) {
-                self.create(req,res);
-            };
-        })(this));
-    }
-    if(typeof(resource.update) === 'undefined' || resource.update) {
-        router.put('/:id',(function(self){
-            return function(req,res) {
-                self.update(req,res);
-            };
-        })(this));
-    }
-    if(typeof(resource.delete) === 'undefined' || resource.delete) {
-        router.delete('/:id',(function(self){
-            return function(req,res) {
-                self.delete(req,res);
-            };
-        })(this));
-    }
     if(nodeType == "internal_db"){
         router.get('/', (function(self){
             return function(req,res) {
@@ -780,51 +653,6 @@ Resource.prototype.initRouter = function(app) {
                 self.internalNode(req,res);
             };
         })(this));
-    }
-
-    if(resource.instanceLinks) {
-        Object.keys(resource.instanceLinks).forEach(function(link){
-            var linkObj = resource.instanceLinks[link],
-                linkObjType = typeof(linkObj);
-            if(linkObjType === 'function') {
-                router.get('/:id/'+link,(function(self){
-                    return function(req,res) {
-                        resource.instanceLinks[link].apply(self,arguments);
-                    };
-                })(self));
-            } else if(linkObj.otherSide instanceof Resource && linkObj.key) {
-                if(linkObj.otherSide.getDefinition().count) {
-                    router.get('/:id/'+link+'/count',
-                        (function(self,otherSide,key) {
-                            return function(req,res) {
-                                var criteria = {};
-                                criteria[key] = req._resourceId;
-                                var query = otherSide.initQuery(otherSide.getModel().find(criteria),req);
-                                query.countDocuments(function(err,n){
-                                    if(err) {
-                                        return Resource.sendError(res,500,'error resolving relationship',err)
-                                    }
-                                    res.json(n);
-                                });
-                            };
-                        })(self,linkObj.otherSide,linkObj.key));
-                }
-                router.get('/:id/'+link,
-                    (function(self,otherSide,key) {
-                        return function(req,res) {
-                            var criteria = {};
-                            criteria[key] = req._resourceId;
-                            var query = otherSide.initQuery(otherSide.getModel().find(criteria),req);
-                            query.exec(function(err,objs){
-                                if(err) {
-                                    return Resource.sendError(res,500,'error resolving relationship',err)
-                                }
-                                otherSide.relListResponse(req,res,objs);
-                            });
-                        };
-                    })(self,linkObj.otherSide,linkObj.key));
-            }
-        });
     }
     if(app) {
         app.use(this.getRel(),router);

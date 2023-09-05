@@ -1,9 +1,4 @@
 # odata-resource
-<!---
-    jsdoc -d ../github/odata-resource/ index.js -R README.md
--->
-
-See the [Home Page](https://adamspe.github.io/odata-resource/) for the contents of this README and the jsdoc for the Resource base class (the module's export).
 
 Node.Js module to allow for creation of REST resources served up via [ExpressJS](expressjs.com) and persisting data via [Mongoose](mongoosejs.com) that:
 
@@ -13,9 +8,7 @@ Node.Js module to allow for creation of REST resources served up via [ExpressJS]
 - Allows for Mongoose models to be defined and used independent of the resource implementation.
 - Allows for a high degree of customization/over-riding of default behavior.
 
-I found a few other modules that use the same basic components but invariably they wouldn't create the kinds of resources I wanted to be working with so I decided to write my own.
-
-# Requirements
+<!-- # Requirements
 
 If exposing resources that support create (POST) and update (PUT) then your Express app must be able to parse JSON as input and you should use [body-parser](https://github.com/expressjs/body-parser) to get that done.
 
@@ -23,7 +16,7 @@ If exposing resources that support create (POST) and update (PUT) then your Expr
 var app = require('express')();
 
 app.use(require('body-parser').json());
-```
+``` -->
 
 # Limitations
 
@@ -56,7 +49,7 @@ Examples:
 
 _Case Sensitivity:_ Due to the performance implications on large collections all string related filtering is unadulterated meaning it's case sensitive.  For the time being if you need case insensitive filtering you may need to consider a solution like storing a lower case version of the property you wish to perform such filtering on.
 
-# Examples
+<!-- # Examples
 
 The most basic resource might look something like:
 
@@ -178,14 +171,14 @@ var users = new Resource({
             return superFind.apply(self,arguments);
         };
     })(users);
-```
+``` -->
 # Count (experimental)
 
 An implicit relationship `count` (similar to the odata `$count`) has been added that will return the integer count of a resource when listed or traversed from another entity relationship.
 
 **Important:** This functionality must be explicitly enabled when constructing a resource by specifying the `count` key on the resource definition object.
 
-For example:
+<!-- For example:
 
 ```
 var reviews = new Resource({
@@ -264,9 +257,9 @@ Example output with `$filter` for a book's five star reviews like `/api/books/<i
 
 In the relationship case it's important to understand that it's the "other side" object that dictates wether the `count` relationship will be added.  In the above example if `count` had not been specified (or set to `false`) when constructing the reviews resource then there woudl be no such relationship like `/api/books/<id>/reviews/count` because reviews don't support counting.
 
-The routes for `count` only exist for basic relationships where the `instanceLink` function is supplied `otherSide` and `key` as input.
+The routes for `count` only exist for basic relationships where the `instanceLink` function is supplied `otherSide` and `key` as input. -->
 
-# Testing
+<!-- # Testing
 
 Requires that `mongod` be running on the default port.
 
@@ -274,36 +267,4 @@ Requires that `mongod` be running on the default port.
 % npm install -g mocha
 ...
 % npm test
-```
-
-# New in 1.0
-
-The `or` operator has been implemented for the `$filter` parameter and the use of parenthesis for grouping within `$filter`.
-
-Filtering by date is now supported.  E.g. `$filter=date lt 2018-01-01T00:00:00.000Z`
-
-# New in 1.1
-
-A basic `index.d.ts` has been added so that Resource can be used better from Typescript projects.
-
-E.g.
-```
-import Resource = require('odata-resource');
-import { Request, Response } from 'express';
-
-class MyResource extends Resource<MyDoc> {
-    find(req:Request,res:Response) {
-        return this.find(req,res);
-    }
-}
-```
-
-# New in 1.2
-
-Added support for the `$expand` query argument.
-
-Nested expansion is supported.  E.g. <code>$expand=_book._author</code> will end up in both the <code>_book</code> reference being expanded and its <code>_author</code> reference being expanded.
-
-With this change the previous `populate` definition property has been deprecated.  The new `$expand` property should be used and, like other resource definition properties plays the role of the default value for the `$expand` query argument.  The `$expand` resource definition property can be a string, object or array of strings and/or objects to pass to mongoose.
-
-**Important:** The corresponding Mongoose model <code>ObjectId</code> properties <strong>must</strong> have their <code>ref</code> properties set properly or expansion cannot work.
+``` -->

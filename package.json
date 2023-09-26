@@ -1,6 +1,6 @@
 {
   "name": "@tswei/odata-resource",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "description": "Redfish",
   "main": "index.js",
   "scripts": {

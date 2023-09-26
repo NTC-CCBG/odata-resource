@@ -1,4 +1,4 @@
-# odata-resource
+# Redfish odata-resource
 
 Node.Js module to allow for creation of REST resources served up via [ExpressJS](expressjs.com) and persisting data via [Mongoose](mongoosejs.com) that:
 
@@ -23,248 +23,258 @@ app.use(require('body-parser').json());
 The `$filter` implementation is not entirely complete and is only `odata`'ish in nature.  Support for all operators is not complete.  Two non-odata operators `in` and `notin` have been implemented.  What is implemented:
 
 ## Logical Operators
-- `eq` - Equal. E.g. `/api/books?$filter=title eq 'Book Title'`
-- `ne` - Not equal. E.g. `/api/books?$filter=title ne 'Book Title'`
-- `lt` - Less than. E.g. `/api/books?$filter=pages lt 200`
-- `le` - Less than or equal. E.g. `/api/books?$filter=pages le 200`
-- `gt` - Greater than. E.g. `/api/books?$filter=pages gt 200`
-- `le` - Greater than or equal. E.g. `/api/books?$filter=pages ge 200`
-- `and` - Logical and. E.g. `/api/books?$filter=pages ge 200 and pages le 400`
-- `or` - Logical and. E.g. `/api/books?$filter=genre eq 'Action' or genre eq 'Fantasy'`
+- `eq` - Equal. E.g. `/redfish/v1/AccountService/Accounts?$filter=email eq 'root@its.root'`
+- `ne` - Not equal. E.g. `/redfish/v1/AccountService/Accounts?$filter=email ne 'root@its.root'`
+- `lt` - Less than. E.g. `/redfish/v1/AccountService/Accounts?$filter=pages lt 200`
+- `le` - Less than or equal. E.g. `/redfish/v1/AccountService/Accounts?$filter=pages le 200`
+- `gt` - Greater than. E.g. `/redfish/v1/AccountService/Accounts?$filter=pages gt 200`
+- `le` - Greater than or equal. E.g. `/redfish/v1/AccountService/Accounts?$filter=pages ge 200`
+- `and` - Logical and. E.g. `/redfish/v1/AccountService/Accounts?$filter=pages ge 200 and pages le 400`
+- `or` - Logical and. E.g. `/redfish/v1/AccountService/Accounts?$filter=email eq 'userdev@test.email' or email eq 'root@its.root'`
 
 ## Functions
-- `startswith` E.g. `/api/books?$filter=startswith(title,'The')`
-- `endswith` E.g. `/api/books?$filter=endswith(title,'The')`
-- `contains` E.g. `/api/books?$filter=contains(title,'The')`
+- `startswith` E.g. `/redfish/v1/AccountService/Accounts?$filter=startswith(email,'root')`
+- `endswith` E.g. `/redfish/v1/AccountService/Accounts?$filter=endswith(email,'mail')`
+- `contains` E.g. `/redfish/v1/AccountService/Accounts?$filter=contains(email,'test')`
 
 ## Non-Odata
-- `in` E.g. `/api/books?$filter=in(genre,'Action','Drama')`
-- `notin` E.g. `/api/books?$filter=notin(genre,'Action','Drama')`
+- `in` E.g. `/redfish/v1/AccountService/Accounts?$filter=in(email,'Action','Drama')`
+- `notin` E.g. `/redfish/v1/AccountService/Accounts?$filter=notin(email,'Action','Drama')`
 
 Parenthesis can be used in `$filter` to group logical conditions.  You just cannot mix `and` and `or` within a single sub-expression (set of parenthesis).
 
 Examples:
-`/api/books?$filter=(genre eq 'Action' or genre eq 'Fantasy') and pages lt 500`
-`/api/books?$filter=(genre eq 'Action' or genre eq 'Fantasy') and (contains(title,'Lion') or contains(title,'Dragon'))`
+`/redfish/v1/AccountService/Accounts?$filter=(email eq 'root@its.root' or email eq 'test@test.email') and pages lt 500`
+`/redfish/v1/AccountService/Accounts?$filter=(email eq 'root@its.root' or email eq 'test@test.email') and (contains(email,'mail') or contains(email,'test'))`
 
 _Case Sensitivity:_ Due to the performance implications on large collections all string related filtering is unadulterated meaning it's case sensitive.  For the time being if you need case insensitive filtering you may need to consider a solution like storing a lower case version of the property you wish to perform such filtering on.
 
-<!-- # Examples
+# Page structure
 
-The most basic resource might look something like:
+This package is split into four different structures for redfish. Its design comes from [binary tree](https://en.wikipedia.org/wiki/Binary_tree).
 
-```
-var mongoose = require('mongoose')
-    Resource = require('odata-resource'),
-    app = require('express')();
+## root
 
-// build the Mongoose Model
-var bookModel = mongoose.model('Book',{
-        title: String,
-        genre: String
-    });
+The Root Node is the starting point in a tree-like structure or graph, much like the homepage of Redfish at /redfish/v1/. It displays links to various pages.
 
-// define the REST resource
-var bookResource = new Resource({
-    rel: '/api/books',
-    model: bookModel
-});
-
-// setup the routes
-bookResource.initRouter(app);
-```
-
-A more complex set of objects might define relationships to one another like:
+#### redfish_v1.js
 
 ```
-var models = {
-    Author: mongoose.model('Author',{
-        firstname: { type: String, required: true, trim: true },
-        lastname: { type: String, required: true, trim: true }
-    }),
-    Book: mongoose.model('Book',{
-        title: { type: String, required: true, trim: true },
-        _author: {type: mongoose.Schema.Types.ObjectId, required: true, ref: 'Author'},
-        genre: { type: String, required: true, trim: true },
-        pages: { type: Number, required: false, min: 1 }
-    }),
-    Review: mongoose.model('Review',{
-        _book: {type: mongoose.Schema.Types.ObjectId, required: true},
-        content: { type: String, required: true, trim: true },
-        stars: { type: Number, required: true, min: 1, max: 5 },
-        updated: { type: Date, default: Date.now }
-    })
+var setting = {
+    otype: '#redfish_test_server',
+    oname: 'Root Service',
+    rel: '/redfish/v1',
+    node_type: 'root'
 };
 
-var authors = new Resource({
-        rel: '/api/authors',
-        model: models.Author,
-    })
-    // Note: this implementation of a custom relationship is just an
-    // example.  In this simple case you wouldn't do this because the
-    // more simple declarative version (like /api/books/<id>/reviews below)
-    // would suffice, you'd just need to postpone the call to
-    // instanceLink until -after- the books resource was created
-    .instanceLink('books',function(req,res){ // custom relationship
-        var query = books.initQuery(books.getModel().find({_author: req._resourceId}),req);
-        query.exec(function(err,bks){
-            if(err){
-                return Resource.sendError(res,500,'error finding books',err);
-            }
-            books.listResponse(req,res,bks);
-        });
-    }),
-    reviews = new Resource({
-        rel: '/api/reviews',
-        model: models.Review
-    }),
-    books = new Resource({
-        rel: '/api/books',
-        model: models.Book,
-        $orderby: 'title',
-        populate: '_author'
-    }).instanceLink('reviews',{ // simple instance based relationship
-        otherSide: reviews,
-        key: '_book'
-    }).staticLink('genres',function(req,res){ // static type based relationship
-        this.getModel().distinct('genre',function(err,genres){
-            if(err){
-                return Resource.sendError(res,500,'error getting genres',err);
-            }
-            res.send(genres);
-        });
+var resource = new Resource(setting);
+root_page = resource.initRouter(router);
+
+root_page.get('/', (req, res) => {
+    console.log(req.query)
+    
+    const main_nodes = trunkModel.getService();
+    const links = linksModel.getLink();
+    var response = {
+        "@odata.id": resource.getRel(),
+        "@odata.type": resource.getOType(),
+        "Id": "RootService",
+        "RedfishVersion": "1.9.0",
+        "Name": "Root Service"
+    };
+
+    main_nodes.forEach(function(value){
+        response[value] = {"@odata.id": "/redfish/v1/" + value}
     });
-```
-
-Default functionality can be over-ridden.  For example perhaps you have some middleware that annotates the incoming request with the authenticated user (`req.user`) and you want:
-
-- To expose a static relationship named `me` that simply returns the currently logged in user.
-- To prevent non-administrative users from seeing the existence of other users via list.
-- To never expose a property containing sensitive information named `secret`.
-
-```
-var users = new Resource({
-            rel: '/api/users',
-            model: User,
-            $select: '-secret', // under normal operation don't expose 'secret'
-        });
-    users.staticLink('me',function(req,res) {
-        users.singleResponse(req,res,req.user,function(u){
-            // using annotated object so need to drop secret explicitly
-            u.secret = undefined;
-            return u;
-        });
+    response['Links'] = {}
+    Object.keys(links).forEach(function(key) {
+        var value = links[key];
+        response['Links'][key] = {"@odata.id": "/redfish/v1/" + value}
     });
-    // override the list (/api/users?$orderby=...)
-    users.find = (function(self){
-        var superFind = self.find;
-        return function(req,res) {
-            if(!req.user.isAdmin()) {
-                // not an admin, only let them see themselves, but do
-                // so as a normal list response so that the response can
-                // also carry meta information.
-                return users.listResponse(req,res,[req.user],function(u){
-                    u.secret = undefined;
-                    return u;
-                });
-            }
-            return superFind.apply(self,arguments);
-        };
-    })(users);
-``` -->
-# Count (experimental)
-
-An implicit relationship `count` (similar to the odata `$count`) has been added that will return the integer count of a resource when listed or traversed from another entity relationship.
-
-**Important:** This functionality must be explicitly enabled when constructing a resource by specifying the `count` key on the resource definition object.
-
-<!-- For example:
-
-```
-var reviews = new Resource({
-        rel: '/api/reviews',
-        model: models.Review,
-        count: true
-    }),
-    books = new Resource({
-        rel: '/api/books',
-        model: models.Book,
-        $orderby: 'title',
-        count: true
-    }).instanceLink('reviews',{ // simple instance based relationship
-        otherSide: reviews,
-        key: '_book'
-    });
+    return res.json(response);
+});
 ```
 
-Then list responses for `/api/books` and `/api/reviews` will contain a static link named `count` that will allow for counting of listed entities.  Similarly when traversing the relationship from `book` to `review` like `/api/book/<id>/reviews` a `count` relationship will be exposed on the reviews response allowing those results to be counted.
-
-In both cases the `$filter` parameter will be honored.  For example `/api/books/count` will return the total number of books while `/api/books/count?$filter=pages ge 100` will the number of books with more than 99 pages.
-
-The same holds true for relationships.  For example `/api/books/<id>/reviews` will return the number of reviews for a given book while `/api/books/<id>/reviews?$filter=stars gt 1` will return the number of reviews for a given book with more than one star.
-
-Example output without `$filter` for a book's reviews like `/api/books/<id>/reviews`:
+#### Output :
 
 ```
 {
-    list: [{
-        _id: "5768a1f6db20b190e421c777",
-        content: "Loved it!",
-        stars: 5,
-        _book: "5768a1f6db20b190e421c775",
-        updated: "2016-06-21T02:09:58.199Z",
-        __v: 0,
-        _links: {
-            self: "/api/reviews/5768a1f6db20b190e421c777"
+    "@odata.id": "/redfish/v1",
+    "@odata.type": "#redfish_test_server",
+    "Id": "RootService",
+    "RedfishVersion": "1.9.0",
+    "Name": "Root Service",
+    "AccountService": {
+        "@odata.id": "/redfish/v1/AccountService"
+    },
+    "Links": {
+        "Sessions": {
+            "@odata.id": "/redfish/v1/SessionService/Sessions"
         }
-    },{
-        _id: "5768a1f6db20b190e421c778",
-        content: "Hated it!",
-        stars: 1,
-        _book: "5768a1f6db20b190e421c775",
-        updated: "2016-06-21T02:09:58.201Z",
-        __v: 0,
-        _links: {
-            self: "/api/reviews/5768a1f6db20b190e421c778"
-        }
-    }],
-    _links: {
-        count: "/api/books/5768a1f6db20b190e421c775/reviews/count"
     }
 }
 ```
 
-Example output with `$filter` for a book's five star reviews like `/api/books/<id>/reviews?$filter=stars eq 5`
+
+## internal
+
+The Internal Node is a node in a tree structure that lies between the root node and the leaf nodes. It is akin to the /redfish/v1/AccountService in Redfish, which provides static data and lists links to other nodes.
+
+#### account_service.js
+
+```
+var setting = {
+    otype: '#AccountService.v1_10_0.AccountService',
+    oname: 'Account Service',
+    rel: '/redfish/v1/AccountService',
+    node_type: 'internal',
+    content:{
+        "Id":"AccountService",
+        "Description":"Account Service",
+        "Status": {
+            "State":"Enabled",
+            "Health":"OK"
+        } ,
+        "ServiceEnabled":true,
+        "MaxPasswordLength": 20,
+        "MinPasswordLength": 8,
+        "AuthFailureLoggingThreshold": 0,
+        "Accounts":{
+            "@odata.id": "/redfish/v1/AccountService/Accounts"
+        },
+        "ServiceEnabled": true
+    }
+};
+
+var resource = new Resource(setting);
+accountService = resource.initRouter(router);
+```
+
+#### Output :
 
 ```
 {
-    list: [{
-        _id: "5768a1f6db20b190e421c777",
-        content: "Loved it!",
-        stars: 5,
-        _book: "5768a1f6db20b190e421c775",
-        updated: "2016-06-21T02:09:58.199Z",
-        __v: 0,
-        _links: {
-            self: "/api/reviews/5768a1f6db20b190e421c777"
-        }
-    }],
-    _links: {
-        count: "/api/books/5768a1f6db20b190e421c775/reviews/count?%24filter=stars%20eq%205"
-    }
+    "@odata.id": "/redfish/v1/AccountService",
+    "@odata.type": "#AccountService.v1_10_0.AccountService",
+    "Id": "AccountService",
+    "Description": "Account Service",
+    "Status": {
+        "State": "Enabled",
+        "Health": "OK"
+    },
+    "ServiceEnabled": true,
+    "MaxPasswordLength": 20,
+    "MinPasswordLength": 8,
+    "AuthFailureLoggingThreshold": 0,
+    "Accounts": {
+        "@odata.id": "/redfish/v1/AccountService/Accounts"
+    },
+    "Name": "Account Service"
 }
 ```
 
-In the relationship case it's important to understand that it's the "other side" object that dictates wether the `count` relationship will be added.  In the above example if `count` had not been specified (or set to `false`) when constructing the reviews resource then there woudl be no such relationship like `/api/books/<id>/reviews/count` because reviews don't support counting.
+## internal_db
 
-The routes for `count` only exist for basic relationships where the `instanceLink` function is supplied `otherSide` and `key` as input. -->
+The Internal DB Node differs from the Internal Node in that it presents the data of a database in a list format. It is used for pages like /redfish/v1/AccountService/Accounts, where it lists links to all the accounts.
 
-<!-- # Testing
-
-Requires that `mongod` be running on the default port.
+#### account.js
 
 ```
-% npm install -g mocha
-...
-% npm test
-``` -->
+var setting = {
+    otype: '#ManagerAccountCollection.ManagerAccountCollection',
+    oname: 'Accounts Collection',
+    rel: '/redfish/v1/AccountService/Accounts',
+    node_type: 'internal_db',
+    model: userModel,
+    okey: 'email',
+    content:{
+        "Description":"NMC User Accounts"
+    }
+};
+
+var resource = new Resource(setting);
+account = resource.initRouter(router);
+```
+
+#### Output :
+
+```
+{
+    "@odata.id": "/redfish/v1/AccountService/Accounts",
+    "@odata.type": "#ManagerAccountCollection.ManagerAccountCollection",
+    "Members": [
+        {
+            "@odata.id": "/redfish/v1/AccountService/Accounts/root@its.root"
+        },
+        {
+            "@odata.id": "/redfish/v1/AccountService/Accounts/test@test.email"
+        },
+        {
+            "@odata.id": "/redfish/v1/AccountService/Accounts/userdev@test.email"
+        },
+        {
+            "@odata.id": "/redfish/v1/AccountService/Accounts/testUser@test.email"
+        }
+    ],
+    "Members@odata.count": 4,
+    "Name": "Accounts Collection",
+    "Description": "NMC User Accounts"
+}
+```
+
+## leaf
+
+The Leaf Node is the bottom-most node in a tree structure, and it does not have any child nodes. In this package, it is used for pages like /redfish/v1/AccountService/Accounts/{email}, where data retrieved from the database is displayed based on specific fields.
+
+#### account_leaf.js
+
+```
+var setting = {
+    otype: '#ManagerAccount.v1_10_0.ManagerAccount',
+    oname: 'User Account',
+    rel: '/redfish/v1/AccountService/Accounts',
+    node_type: 'leaf',
+    model: userModel,
+    okey: 'email',
+    content:{
+        "Description": "User Account"
+    }
+};
+
+var resource = new Resource(setting);
+accountLeaf = resource.initRouter(router);
+```
+
+#### Output :
+
+```
+{
+    "_id": "60c1d32353993811c08488bf",
+    "email": "root@its.root",
+    "password": "$2b$10$xGX0JJNNQQaq5hmnedqT.OjRnzsmJFoKF.3QEJfvlVCg5owZr7U1a",
+    "Description": "User Account",
+    "@odata.type": "#ManagerAccount.v1_10_0.ManagerAccount",
+    "Name": "User Account",
+    "@odata.id": "/redfish/v1/AccountService/Accounts/root@its.root",
+    "Enabled": true,
+    "Locked": false
+}
+```
+
+# Members@odata.count
+
+An implicit relationship `Members@odata.count` (similar to the odata `$count`) has been added that will return the integer count of a resource when listed or traversed from another entity relationship.
+
+**Important:** `Members@odata.count` will be automatically applied to internal_db.
+
+# Testing
+
+```
+cd example
+
+npm install
+
+node app.js
+```
+go to browser and enter the URL : 
+[127.0.0.1:3000/redfish/v1](http://127.0.0.1:3000/redfish/v1)
